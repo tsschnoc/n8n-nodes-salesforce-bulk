@@ -27,8 +27,8 @@ import {
 
 export class Salesforce implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Salesforce bulk',
-		name: 'salesforce bulk',
+		displayName: 'Salesforce Bulk',
+		name: 'salesforceBulk',
 		icon: 'file:salesforce.svg',
 		group: ['output'],
 		version: 1,
