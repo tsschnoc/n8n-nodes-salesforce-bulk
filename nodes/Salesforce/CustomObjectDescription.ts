@@ -117,7 +117,7 @@ export const customObjectFields: INodeProperties[] = [
 		displayOptions: {
 			show: {
 				resource: ['customObject'],
-				operation: ['upsert'],
+				operation: ['create', 'upsert'],
 			},
 		},
 		default: false,
