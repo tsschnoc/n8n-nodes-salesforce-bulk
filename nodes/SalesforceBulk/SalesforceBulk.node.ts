@@ -25,7 +25,7 @@ import {
 } from './CSVFunctions';
 
 
-export class Salesforce implements INodeType {
+export class SalesforceBulk implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Salesforce Bulk',
 		name: 'salesforceBulk',
@@ -35,7 +35,7 @@ export class Salesforce implements INodeType {
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
 		description: 'Consume Salesforce API',
 		defaults: {
-			name: 'Salesforce',
+			name: 'SalesforceBulk',
 		},
 		inputs: ['main'],
 		outputs: ['main'],
@@ -952,19 +952,14 @@ export class Salesforce implements INodeType {
 		const resource = this.getNodeParameter('resource', 0);
 		const operation = this.getNodeParameter('operation', 0);
 		const useBulkApi = this.getNodeParameter('useBulkApi', 0);
-		const customObject = this.getNodeParameter('customObject', 0) as string;
-		const externalId = this.getNodeParameter('externalId', 0) as string;
 
-		console.log('useBulkApi', useBulkApi);
-		console.log('customObject', customObject);
-		console.log('externalId', externalId);
 		// this.logger.debug(
 		// 	`Running "Salesforce" node named "${this.getNode.name}" resource "${resource}" operation "${operation}"`,
 		// );
 
-
-
 		if (operation === 'upsert' && useBulkApi === true) {
+			const externalId = this.getNodeParameter('externalId', 0) as string;
+			const customObject = this.getNodeParameter('customObject', 0) as string;
 
 			const bodies: IDataObject[] = [];
 
@@ -990,14 +985,14 @@ export class Salesforce implements INodeType {
 
 				bodies.push(body);
 
-		
+
 			}
 
-			
-			
+
+
 			const csvContent2 = jsonToCSV(bodies);
 			console.log(csvContent2);
-			
+
 			let body = {
 				"object" : customObject,
 				"externalIdFieldName" : externalId,
@@ -1006,7 +1001,7 @@ export class Salesforce implements INodeType {
 				"lineEnding" : "CRLF"
 			};
 
-			
+
 			let createBatch  = await salesforceApiRequest.call(this, 'POST', '/jobs/ingest/', body);
 			console.log('createBatch', createBatch);
 			console.log('createBatch.contentUrl', createBatch.contentUrl);
@@ -1060,7 +1055,7 @@ export class Salesforce implements INodeType {
 						body: plainBody,
 						uri: `${credentials.oauthTokenData.instance_url}/services/data/v39.0/jobs/ingest/${createBatch.id}/batches`,
 					};
-		
+
 					let x = await this.helpers.requestOAuth2.call(this, credentialsType, options);
 					console.log('x', x);
 				}
@@ -1084,11 +1079,11 @@ export class Salesforce implements INodeType {
 			};
 
 			await waitForJobCompletion();
-			
+
 			let successfulResults  = await salesforceApiRequest.call(this, 'GET', `/jobs/ingest/${createBatch.id}/successfulResults/`);
 			console.log('successfulResults', successfulResults);
 
-			
+
 			const jsonArray = csvToJSON(successfulResults);
 			console.log('jsonArray', jsonArray);
 
@@ -1099,7 +1094,7 @@ export class Salesforce implements INodeType {
 			// returnData.push({"json":{"errors":[],"success":true, id:'sdfsdf'},"pairedItem":{"item":0}});
 			// returnData.push({"json":{"errors":[],"success":true},"pairedItem":{"item":0}});
 			return [returnData];
-		} 
+		}
 		// this.logger.debug(
 		// 	`Running "Salesforce" node named "${this.getNode.name}" resource "${resource}" operation "${operation}"`,
 		// );

@@ -1,12 +1,12 @@
 {
   "name": "n8n-nodes-salesforce-bulk",
-  "version": "0.1.0",
+  "version": "0.1.8",
   "description": "salesforce bulk api adapter for n8n",
   "keywords": [
-    "n8n-community-node-package"
+    "n8n-community-node-package", "salesforce", "bulk api"
   ],
   "license": "MIT",
-  "homepage": "",
+  "homepage": "https://github.com/tsschnoc/n8n-nodes-salesforce-bulk.git",
   "author": {
     "name": "dev",
     "email": "dev@example.com"
@@ -31,7 +31,7 @@
     "n8nNodesApiVersion": 1,
     "credentials": [],
     "nodes": [
-      "dist/nodes/Salesforce/Salesforce.node.js"
+      "dist/nodes/SalesforceBulk/SalesforceBulk.node.js"
     ]
   },
   "devDependencies": {
