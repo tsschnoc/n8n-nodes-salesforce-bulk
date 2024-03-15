@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-salesforce-bulk",
-  "version": "0.1.8",
+  "version": "0.1.15",
   "description": "salesforce bulk api adapter for n8n",
   "keywords": [
     "n8n-community-node-package", "salesforce", "bulk api"
@@ -13,7 +13,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/tsschnoc/n8n-nodes-salesforce-bulk.git"
+    "url": "git+https://github.com/tsschnoc/n8n-nodes-salesforce-bulk.git"
   },
   "main": "index.js",
   "scripts": {

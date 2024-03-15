@@ -24,32 +24,32 @@ export const customObjectOperations: INodeProperties[] = [
 				description: 'Create a new record, or update the current one if it already exists (upsert)',
 				action: 'Create or update a custom object',
 			},
-			{
-				name: 'Delete',
-				value: 'delete',
-				description: 'Delete a custom object record',
-				action: 'Delete a custom object',
-			},
-			{
-				name: 'Get',
-				value: 'get',
-				description: 'Get a custom object record',
-				action: 'Get a custom object',
-			},
-			{
-				name: 'Get Many',
-				value: 'getAll',
-				description: 'Get many custom object records',
-				action: 'Get many custom objects',
-			},
-			{
-				name: 'Update',
-				value: 'update',
-				description: 'Update a custom object record',
-				action: 'Update a custom object',
-			},
+			// {
+			// 	name: 'Delete',
+			// 	value: 'delete',
+			// 	description: 'Delete a custom object record',
+			// 	action: 'Delete a custom object',
+			// },
+			// {
+			// 	name: 'Get',
+			// 	value: 'get',
+			// 	description: 'Get a custom object record',
+			// 	action: 'Get a custom object',
+			// },
+			// {
+			// 	name: 'Get Many',
+			// 	value: 'getAll',
+			// 	description: 'Get many custom object records',
+			// 	action: 'Get many custom objects',
+			// },
+			// {
+			// 	name: 'Update',
+			// 	value: 'update',
+			// 	description: 'Update a custom object record',
+			// 	action: 'Update a custom object',
+			// },
 		],
-		default: 'create',
+		default: 'upsert',
 	},
 ];
 
@@ -120,7 +120,7 @@ export const customObjectFields: INodeProperties[] = [
 				operation: ['create', 'upsert'],
 			},
 		},
-		default: false,
+		default: true,
 		description: 'Whether to return all results or only up to a given limit',
 	},
 

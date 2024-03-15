@@ -957,7 +957,7 @@ export class SalesforceBulk implements INodeType {
 		// 	`Running "Salesforce" node named "${this.getNode.name}" resource "${resource}" operation "${operation}"`,
 		// );
 
-		if (operation === 'upsert' && useBulkApi === true) {
+		if ((operation === 'upsert' || operation === 'create') && useBulkApi === true) {
 			const externalId = this.getNodeParameter('externalId', 0) as string;
 			const customObject = this.getNodeParameter('customObject', 0) as string;
 
@@ -997,7 +997,7 @@ export class SalesforceBulk implements INodeType {
 				"object" : customObject,
 				"externalIdFieldName" : externalId,
 				"contentType" : "CSV",
-				"operation" : "upsert",
+				"operation" : operation === 'upsert' ? 'upsert' : "insert",
 				"lineEnding" : "CRLF"
 			};
 
@@ -1088,6 +1088,19 @@ export class SalesforceBulk implements INodeType {
 			console.log('jsonArray', jsonArray);
 
 			jsonArray.forEach((element: any) => {
+				element.success = true;
+				returnData.push({json: element});
+			});
+
+
+			//failedResults
+			let failedResults  = await salesforceApiRequest.call(this, 'GET', `/jobs/ingest/${createBatch.id}/failedResults/`);
+			console.log('failedResults', failedResults);
+			const jsonArray2 = csvToJSON(failedResults);
+			console.log('jsonArray2', jsonArray2);
+
+			jsonArray2.forEach((element: any) => {
+				element.success = false;
 				returnData.push({json: element});
 			});
 
