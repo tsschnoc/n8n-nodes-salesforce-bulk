@@ -951,70 +951,77 @@ export class SalesforceBulk implements INodeType {
 		const qs: IDataObject = {};
 		const resource = this.getNodeParameter('resource', 0);
 		const operation = this.getNodeParameter('operation', 0);
-		const useBulkApi = this.getNodeParameter('useBulkApi', 0);
+		var useBulkApi;
+		try {
+			useBulkApi = this.getNodeParameter('useBulkApi', 0);
+		}
+		catch (error) {
+
+		}
 
 		// this.logger.debug(
 		// 	`Running "Salesforce" node named "${this.getNode.name}" resource "${resource}" operation "${operation}"`,
 		// );
 
-		if ((operation === 'upsert' || operation === 'create') && useBulkApi === true) {
-			const externalId = this.getNodeParameter('externalId', 0) as string;
-			const customObject = this.getNodeParameter('customObject', 0) as string;
+		if (useBulkApi === true) {
 
+			const customObject = this.getNodeParameter('customObject', 0) as string;
 			const bodies: IDataObject[] = [];
 
 			for (let i = 0; i < items.length; i++) {
-				const customFieldsUi = this.getNodeParameter('customFieldsUi', i) as IDataObject;
-				const additionalFields = this.getNodeParameter('additionalFields', i);
 				const body: IDataObject = {};
-				if (customFieldsUi) {
-					const customFields = customFieldsUi.customFieldsValues as IDataObject[];
-					if (customFields) {
-						for (const customField of customFields) {
-							body[customField.fieldId as string] = customField.value;
+				bodies.push(body);
+				if (operation === 'delete' )	{
+					body.Id = this.getNodeParameter('recordId', i) as string;
+				}
+				else {
+					const customFieldsUi = this.getNodeParameter('customFieldsUi', i) as IDataObject;
+					const additionalFields = this.getNodeParameter('additionalFields', i);
+					if (customFieldsUi) {
+						const customFields = customFieldsUi.customFieldsValues as IDataObject[];
+						if (customFields) {
+							for (const customField of customFields) {
+								body[customField.fieldId as string] = customField.value;
+							}
 						}
 					}
+					if (additionalFields.recordTypeId) {
+						body.RecordTypeId = additionalFields.recordTypeId as string;
+					}
+
+					if (operation === 'upsert' )	{
+						const externalIdValue = this.getNodeParameter('externalIdValue', i) as string;
+						const externalId = this.getNodeParameter('externalId', 0) as string;
+						body[externalId] = externalIdValue;
+					}
 				}
-				if (additionalFields.recordTypeId) {
-					body.RecordTypeId = additionalFields.recordTypeId as string;
-				}
-
-
-				const externalIdValue = this.getNodeParameter('externalIdValue', i) as string;
-				body[externalId] = externalIdValue;
-
-				bodies.push(body);
-
-
 			}
 
 
 
-			const csvContent2 = jsonToCSV(bodies);
-			console.log(csvContent2);
 
-			let body = {
+			let body: { object: string; contentType: string; operation: string; lineEnding: string; externalIdFieldName?: string; } = {
 				"object" : customObject,
-				"externalIdFieldName" : externalId,
 				"contentType" : "CSV",
-				"operation" : operation === 'upsert' ? 'upsert' : "insert",
+				"operation" : {
+					"create" : "insert",
+					"update" : "update",
+					"delete" : "delete",
+					"upsert" : "upsert"
+				}[operation] || 'nooperation',
 				"lineEnding" : "CRLF"
 			};
-
+			if (operation === 'upsert' )	{
+				const externalId = this.getNodeParameter('externalId', 0) as string;
+				body.externalIdFieldName = externalId;
+			}
 
 			let createBatch  = await salesforceApiRequest.call(this, 'POST', '/jobs/ingest/', body);
 			console.log('createBatch', createBatch);
 			console.log('createBatch.contentUrl', createBatch.contentUrl);
 
 
-			let plainBody = `DebitorNrSAP__c,Name
-			1,Thsadfasf Hansi
-			2,Thsadfasf Hase
-			3,Thsadfasf ICh
-			4,Thsadfasf Weiss`;
-
-
-			plainBody = csvContent2;
+			let plainBody = jsonToCSV(bodies);
 
 
 			const authenticationMethod = this.getNodeParameter('authentication', 0, 'oAuth2') as string;
@@ -1053,7 +1060,7 @@ export class SalesforceBulk implements INodeType {
 						},
 						method: 'PUT',
 						body: plainBody,
-						uri: `${credentials.oauthTokenData.instance_url}/services/data/v39.0/jobs/ingest/${createBatch.id}/batches`,
+						uri: `${credentials.oauthTokenData.instance_url}/services/data/v60.0/jobs/ingest/${createBatch.id}/batches`,
 					};
 
 					let x = await this.helpers.requestOAuth2.call(this, credentialsType, options);
@@ -1063,31 +1070,24 @@ export class SalesforceBulk implements INodeType {
 				throw new NodeApiError(this.getNode(), error as JsonObject);
 			}
 
+			let closeBatchResponse  = await salesforceApiRequest.call(this, 'PATCH', `/jobs/ingest/${createBatch.id}/`, {"state":"UploadComplete"});
+			console.log('closeBatchResponse', closeBatchResponse);
 
-			let closeBatch  = await salesforceApiRequest.call(this, 'PATCH', `/jobs/ingest/${createBatch.id}/`, {"state":"UploadComplete"});
-			console.log('createBatch2', closeBatch);
-
-			let status = await salesforceApiRequest.call(this, 'GET', `/jobs/ingest/${createBatch.id}/`);
-			console.log('status', status);
+			let statusResponse = await salesforceApiRequest.call(this, 'GET', `/jobs/ingest/${createBatch.id}/`);
 
 			const waitForJobCompletion = async () => {
-				while (status.state !== 'JobComplete' && status.state !== 'falied' && status.state !== 'Aborted' && status.state !== 'Not Processed' && status.state !== 'Failed') {
+				while (statusResponse.state !== 'JobComplete' && statusResponse.state !== 'falied' && statusResponse.state !== 'Aborted' && statusResponse.state !== 'Not Processed' && statusResponse.state !== 'Failed') {
 					await new Promise(resolve => setTimeout(resolve, 2000));
-					status = await salesforceApiRequest.call(this, 'GET', `/jobs/ingest/${createBatch.id}/`);
-					console.log('status', status);
+					statusResponse = await salesforceApiRequest.call(this, 'GET', `/jobs/ingest/${createBatch.id}/`);
 				}
 			};
 
 			await waitForJobCompletion();
 
 			let successfulResults  = await salesforceApiRequest.call(this, 'GET', `/jobs/ingest/${createBatch.id}/successfulResults/`);
-			console.log('successfulResults', successfulResults);
+			const successfulResultsArray = csvToJSON(successfulResults);
 
-
-			const jsonArray = csvToJSON(successfulResults);
-			console.log('jsonArray', jsonArray);
-
-			jsonArray.forEach((element: any) => {
+			successfulResultsArray.forEach((element: any) => {
 				element.success = true;
 				returnData.push({json: element});
 			});
@@ -1095,11 +1095,9 @@ export class SalesforceBulk implements INodeType {
 
 			//failedResults
 			let failedResults  = await salesforceApiRequest.call(this, 'GET', `/jobs/ingest/${createBatch.id}/failedResults/`);
-			console.log('failedResults', failedResults);
-			const jsonArray2 = csvToJSON(failedResults);
-			console.log('jsonArray2', jsonArray2);
+			const failedResultsArray = csvToJSON(failedResults);
 
-			jsonArray2.forEach((element: any) => {
+			failedResultsArray.forEach((element: any) => {
 				element.success = false;
 				returnData.push({json: element});
 			});
