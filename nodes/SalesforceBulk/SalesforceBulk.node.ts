@@ -1063,8 +1063,8 @@ export class SalesforceBulk implements INodeType {
 						uri: `${credentials.oauthTokenData.instance_url}/services/data/v60.0/jobs/ingest/${createBatch.id}/batches`,
 					};
 
-					let x = await this.helpers.requestOAuth2.call(this, credentialsType, options);
-					console.log('x', x);
+					let uploadCSVResult = await this.helpers.requestOAuth2.call(this, credentialsType, options);
+					console.log('uploadCSVResult', uploadCSVResult);
 				}
 			} catch (error) {
 				throw new NodeApiError(this.getNode(), error as JsonObject);
