@@ -8,9 +8,11 @@ import type {
 	INodeTypeDescription,
 	JsonObject,
 } from 'n8n-workflow';
-import { NodeApiError } from 'n8n-workflow';
+import { NodeApiError, deepCopy } from 'n8n-workflow';
+import {/*  Builder,  */Parser } from 'xml2js';
 
 import { customObjectFields, customObjectOperations } from './CustomObjectDescription';
+import { anonymousApexExecutionOperations, anonymousApexExecutionFields } from './AnonymousApexExecutionDescription';
 
 import {
 	getQuery,
@@ -88,11 +90,18 @@ export class SalesforceBulk implements INodeType {
 						value: 'customObject',
 						description: 'Represents a custom object',
 					},
+					{
+						name: 'Execute Anonymous Apex',
+						value: 'anonymousApexExecution',
+						description: 'Executes anonymous Apex code',
+					},
 				],
 				default: 'customObject',
 			},
 			...customObjectOperations,
 			...customObjectFields,
+			...anonymousApexExecutionOperations,
+			...anonymousApexExecutionFields
 		],
 	};
 
@@ -963,6 +972,87 @@ export class SalesforceBulk implements INodeType {
 		// 	`Running "Salesforce" node named "${this.getNode.name}" resource "${resource}" operation "${operation}"`,
 		// );
 
+		if (operation === 'executeApex') {
+			const apexCode = this.getNodeParameter('apexCode', 0) as string;
+			//const encodedApexCode = encodeURIComponent(apexCode);
+
+			const authenticationMethod = this.getNodeParameter('authentication', 0, 'oAuth2') as string;
+			const credentialsType = authenticationMethod === 'jwt' ? 'salesforceJwtApi' : 'salesforceOAuth2Api';
+
+			const credentials = await this.getCredentials(credentialsType);
+
+			const c = JSON.parse(JSON.stringify(credentials));
+			let refresh_token = c.oauthTokenData.refresh_token;
+
+			let authResponseData = await this.helpers.request({
+				"headers": {
+					"Content-Type": "application/x-www-form-urlencoded"
+				},
+				"method": "POST",
+				"qs": {},
+				"uri": c.authUrl.split('/services')[0] + "/services/oauth2/token",
+				"json": false,
+				"body" : `grant_type=refresh_token&refresh_token=${refresh_token}&client_id=${credentials.clientId}`
+			});
+
+
+			let ar = JSON.parse(authResponseData);
+			let accessToken = ar.access_token;
+
+			const match = ar.id.match(/\/id\/(00D\w+)\//);
+			const orgId = match ? match[1] : null;
+
+
+			const b = `<env:Envelope xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+			xmlns:env="http://schemas.xmlsoap.org/soap/envelope/"
+			xmlns:cmd="http://soap.sforce.com/2006/08/apex"
+			xmlns:apex="http://soap.sforce.com/2006/08/apex">
+					<env:Header>
+							<cmd:SessionHeader>
+									<cmd:sessionId>${accessToken}</cmd:sessionId>
+							</cmd:SessionHeader>
+							<apex:DebuggingHeader>
+									<apex:debugLevel>DEBUGONLY</apex:debugLevel>
+							</apex:DebuggingHeader>
+					</env:Header>
+					<env:Body>
+							<executeAnonymous xmlns="http://soap.sforce.com/2006/08/apex">
+									<apexcode>${apexCode}</apexcode>
+							</executeAnonymous>
+					</env:Body>
+			</env:Envelope>`;
+
+			var options = {
+				"headers": {
+					"Content-Type": "text/xml; charset=utf-8",
+					"soapaction": "executeAnonymous"
+				},
+				"method": "POST",
+				"qs": {},
+				"uri": `${ar.instance_url}/services/Soap/s/60.0/${orgId}`,
+				"json": false,
+				"body" : b
+			};
+
+
+
+
+			responseData = await this.helpers.request(options);
+
+			const parserOptions = Object.assign(
+				{
+					mergeAttrs: true,
+					explicitArray: false,
+				},
+				options,
+			);
+
+			const parser = new Parser(parserOptions);
+			const json = await parser.parseStringPromise(responseData);
+			returnData.push({ json: deepCopy(json) });
+			return [returnData];
+		}
+
 		if (useBulkApi === true) {
 
 			const customObject = this.getNodeParameter('customObject', 0) as string;
@@ -1023,52 +1113,10 @@ export class SalesforceBulk implements INodeType {
 
 			let plainBody = jsonToCSV(bodies);
 
+			let uploadCsvResponse  = await salesforceApiRequest.call(this, 'PUT', `/jobs/ingest/${createBatch.id}/batches`, plainBody, undefined,
+				undefined, {headers:{'Content-Type': 'text/csv'}});
 
-			const authenticationMethod = this.getNodeParameter('authentication', 0, 'oAuth2') as string;
-			try {
-				if (authenticationMethod === 'jwt') {
-					// // https://help.salesforce.com/articleView?id=remoteaccess_oauth_jwt_flow.htm&type=5
-					// const credentialsType = 'salesforceJwtApi';
-					// const credentials = await this.getCredentials(credentialsType);
-					// const response = await getAccessToken.call(this, credentials);
-					// const { instance_url, access_token } = response;
-					// const options = getOptions.call(
-					// 	this,
-					// 	method,
-					// 	uri || endpoint,
-					// 	body,
-					// 	qs,
-					// 	instance_url as string,
-					// );
-					// this.logger.debug(
-					// 	`Authentication for "Salesforce" node is using "jwt". Invoking URI ${options.uri}`,
-					// );
-					// options.headers!.Authorization = `Bearer ${access_token}`;
-					// Object.assign(options, option);
-					// //@ts-ignore
-					// return await this.helpers.request(options);
-				} else {
-					// https://help.salesforce.com/articleView?id=remoteaccess_oauth_web_server_flow.htm&type=5
-					const credentialsType = 'salesforceOAuth2Api';
-					const credentials = (await this.getCredentials(credentialsType)) as {
-						oauthTokenData: { instance_url: string };
-					};
-
-					const options = {
-						headers: {
-							'Content-Type': 'text/csv',
-						},
-						method: 'PUT',
-						body: plainBody,
-						uri: `${credentials.oauthTokenData.instance_url}/services/data/v60.0/jobs/ingest/${createBatch.id}/batches`,
-					};
-
-					let uploadCSVResult = await this.helpers.requestOAuth2.call(this, credentialsType, options);
-					console.log('uploadCSVResult', uploadCSVResult);
-				}
-			} catch (error) {
-				throw new NodeApiError(this.getNode(), error as JsonObject);
-			}
+			console.log('uploadCsvResponse', uploadCsvResponse);
 
 			let closeBatchResponse  = await salesforceApiRequest.call(this, 'PATCH', `/jobs/ingest/${createBatch.id}/`, {"state":"UploadComplete"});
 			console.log('closeBatchResponse', closeBatchResponse);
